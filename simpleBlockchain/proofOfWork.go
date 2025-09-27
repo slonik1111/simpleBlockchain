@@ -32,7 +32,7 @@ func (pow *ProofOfWork) Validate() bool {
 	hash := sha256.Sum256(data)
 	Hash := hash[:]
 	hashValue := big.NewInt(0).SetBytes(Hash)
-	return hashValue.Cmp(pow.target) == -1 
+	return hashValue.Cmp(pow.target) == -1
 }
 
 func (pow *ProofOfWork) prepareData(nonce int) []byte {
@@ -48,15 +48,16 @@ func (pow *ProofOfWork) prepareData(nonce int) []byte {
 func (pow *ProofOfWork) Run() (int, []byte) {
 	nonce := 0
 	var data []byte
+	var Hash []byte
 	for nonce < math.MaxInt32 {
 		data = pow.prepareData(nonce)
 		hash := sha256.Sum256(data)
-		Hash := hash[:]
+		Hash = hash[:]
 		hashValue := big.NewInt(0).SetBytes(Hash)
 		if hashValue.Cmp(pow.target) == -1 {
 			break
 		}
 		nonce++
 	}
-	return nonce, data
+	return nonce, Hash
 }

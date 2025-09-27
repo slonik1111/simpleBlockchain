@@ -30,7 +30,7 @@ func NewBlock(data string, prevBlockHash []byte) *Block {
 		Data:          []byte(data),
 		PrevBlockHash: prevBlockHash,
 	}
-	fmt.Printf("Created PoW for %s\n", data)
+	fmt.Printf("Создан PoW для %s\n", data)
 	pow := NewProofOfWork(block)
 	nonce, hash := pow.Run()
 	block.Hash = hash

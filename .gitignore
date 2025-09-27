@@ -1,0 +1,35 @@
+# Сборочные файлы Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Тестовые бинарники
+*.test
+
+# Кэш компиляции Go
+*.out
+
+# Модули и зависимости
+/vendor/
+/bin/
+/build/
+
+# Конфигурации окружения
+.env
+.env.local
+*.env
+
+# Логи
+*.log
+
+# IDE/редакторы
+.vscode/
+.idea/
+*.swp
+*~
+
+# Системные файлы
+.DS_Store
+Thumbs.db
