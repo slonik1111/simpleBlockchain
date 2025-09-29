@@ -20,9 +20,17 @@ func NewBlockchain() *Blockchain {
 	fmt.Println(isEmpty)
 
 	if isEmpty {
-		genesisBlock := NewGenesisBlock()
+		coinbaseTx := NewCoinbaseTransaction("Ivan")
 
-		_, err := db.Exec("INSERT INTO blocks (hash, prev_hash, data, timestamp, nonce) VALUES($1, $2, $3, $4, $5)", 
+		genesisBlock := NewGenesisBlock(coinbaseTx)
+
+		_, err := db.Exec("INSERT INTO outputs VALUES($1, $2, $3, $4)", coinbaseTx.ID, 0, "Ivan", 10)
+		check(err)
+
+		_, err = db.Exec("INSERT INTO transactions VALUES($1, $2)", coinbaseTx.ID, genesisBlock.Hash)
+		check(err)
+
+		_, err = db.Exec("INSERT INTO blocks (hash, prev_hash, data, timestamp, nonce) VALUES($1, $2, $3, $4, $5)", 
 			genesisBlock.Hash, nil, genesisBlock.Data, genesisBlock.Timestamp, genesisBlock.Nonce)
 
 		if err != nil {
@@ -35,6 +43,6 @@ func NewBlockchain() *Blockchain {
 		}
 		fmt.Println("Генезис блок в БД")
 	}
-
-	return &Blockchain{db}
+	bc := &Blockchain{db}
+	return bc
 }

@@ -38,6 +38,7 @@ func (pow *ProofOfWork) Validate() bool {
 func (pow *ProofOfWork) prepareData(nonce int) []byte {
 	data := bytes.Join([][]byte{
 		pow.block.Data,
+		pow.block.HashTransactions(),
 		pow.block.PrevBlockHash,
 		Int64ToBytes(pow.block.Timestamp),
 		Int64ToBytes(int64(nonce)),

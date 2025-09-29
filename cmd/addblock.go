@@ -8,8 +8,8 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var addCmd = &cobra.Command{
-	Use:   "add [data]",
+var addblockCmd = &cobra.Command{
+	Use:   "addblock [data]",
 	Short: "Добавить новый блок",
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
@@ -20,5 +20,5 @@ var addCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.AddCommand(addCmd)
+	rootCmd.AddCommand(addblockCmd)
 }

@@ -10,6 +10,12 @@ import (
 	_ "github.com/lib/pq"
 )
 
+func check(err error) {
+	if err != nil {
+		log.Fatal(err)
+	}
+}
+
 func Connect() *sql.DB {
 	err := godotenv.Load()
 	if err != nil {
@@ -37,12 +43,12 @@ func Connect() *sql.DB {
 	if err = db.Ping(); err != nil {
 		log.Fatal("ping error:", err)
 	}
-	createQuerry, err := loadSQL("queries/Create.sql")
+	query, err := loadSQL("queries/Create.sql")
 	if err != nil {
 		log.Fatal("create")
 	}
 
-	db.Exec(createQuerry)
+	db.Exec(query)
 
 	fmt.Println("Таблицы созданы")
 
@@ -57,13 +63,55 @@ func loadSQL(path string) (string, error) {
 	return string(data), nil
 }
 
+func (bc *Blockchain) GetFreeTransactions() []*Transaction {
+	freeTransactions := make([]*Transaction, 0)
+	query, err := loadSQL("queries/GetFreeTransactions.sql")
+	if err != nil {
+		log.Fatal(err)
+	}
+	rows, err := bc.db.Query(query)
+	if err != nil {
+		log.Fatal(err)
+	}
+	tx := []byte{}
+	for rows.Next() {
+		rows.Scan(&tx)
+		query, err = loadSQL("queries/GetInputsTx")
+		check(err)
+		ins, err := bc.db.Query(query, tx) 
+		txIns := make([]TXInput, 0)
+		check(err)
+		for ins.Next() {
+			input := TXInput{}
+			ins.Scan(&input.Txid, &input.Vout, &input.ScriptSig)
+			txIns = append(txIns, input)
+		}
+		query, err = loadSQL("queries/GetOutputsTx")
+		check(err)
+		outs, err := bc.db.Query(query, tx) 
+		txOuts := make([]TXOutput, 0)
+		check(err)
+		for outs.Next() {
+			output := TXOutput{}
+			outs.Scan(&output.Value, &output.ScriptPubKey)
+			txOuts = append(txOuts, output)
+		}
+		freeTransactions = append(freeTransactions, &Transaction{tx, txIns, txOuts})
+	}
+	return freeTransactions
+}
+
 func (bc *Blockchain) AddBlock(data string) {
-	block := NewBlock(data, bc.GetLastBlock().Hash)
+	txs := bc.GetFreeTransactions()
+	block := NewBlock(data, txs, bc.GetLastBlock().Hash)
 	_, err := bc.db.Exec("INSERT INTO blocks (hash, prev_hash, data, timestamp, nonce) VALUES($1, $2, $3, $4, $5)",
 		block.Hash, block.PrevBlockHash, block.Data, block.Timestamp, block.Nonce)
 	if err != nil {
 		log.Fatal(err)
 	}
+
+	_, err = bc.db.Exec("UPDATE transactions SET blockhash = $1 WHERE blockhash IS NULL", block.Hash) 
+	check(err)
 
 	_, err = bc.db.Exec("UPDATE tail SET hash = $1", block.Hash)
 	if err != nil {
@@ -81,7 +129,7 @@ func (bc *Blockchain) GetBlocks() []*Block {
 		var hash, prevHash, data []byte
 		var timestamp int64
 		var nonce int
-		rows.Scan(&hash, &prevHash, &data, timestamp, nonce)
+		rows.Scan(&hash, &prevHash, &data, &timestamp, &nonce)
 		blocks = append(blocks, &Block{
 			Hash:          hash,
 			PrevBlockHash: prevHash,
@@ -98,7 +146,7 @@ func (bc *Blockchain) GetBlockByHash(hash *[]byte) *Block {
 	var hash1, prevHash, data []byte
 	var timestamp int64
 	var nonce int
-	row.Scan(&hash1, &prevHash, &data, timestamp, nonce)
+	row.Scan(&hash1, &prevHash, &data, &timestamp, &nonce)
 	return &Block{
 		Hash:          hash1,
 		PrevBlockHash: prevHash,
@@ -130,11 +178,59 @@ func (bc *Blockchain) GetChain() []*Block {
 
 func (bc *Blockchain) Clear() {
 	_, err := bc.db.Exec("DROP TABLE blocks;")
-	if err != nil {
-		log.Fatal(err)
-	}
+	check(err)
 	_, err = bc.db.Exec("DROP TABLE tail;")
+	check(err)
+	_, err = bc.db.Exec("DROP TABLE transactions;")
+	check(err)
+	_, err = bc.db.Exec("DROP TABLE inputs;")
+	check(err)
+	_, err = bc.db.Exec("DROP TABLE outputs;")
+	check(err)
+}
+
+
+func (bc *Blockchain) GetFreeOutputs(adr string) (int, []TXOutput, [][]byte, []int) {
+	outputs := make([]TXOutput, 0)
+	txns := make([][]byte, 0)
+	index := make([]int, 0)
+	sum := 0
+	query, err := loadSQL("queries/GetFreeOutputs.sql")
+	fmt.Println(query)
 	if err != nil {
 		log.Fatal(err)
 	}
+	rows, err := bc.db.Query(query, adr)
+	if err != nil {
+		log.Fatal(err)
+	}
+	for rows.Next() {
+		var txId []byte
+		var idx, amount int
+		rows.Scan(&txId, &idx, &amount)
+		sum += amount
+		outputs = append(outputs, TXOutput{amount, adr})
+		txns = append(txns, txId)
+		index = append(index, idx)
+	}
+	fmt.Print(outputs)
+	return sum, outputs, txns, index
+}
+
+func (bc *Blockchain) AddTransaction(from, to string, amount int) {
+	tnx := NewTransaction(from, to, amount, bc)
+	query := "INSERT INTO transactions VALUES ($1, $2)"
+	_, err := bc.db.Exec(query, tnx.ID, nil)
+	check(err)
+	for i, input := range tnx.Vin {
+		query = "INSERT INTO inputs VALUES($1, $2, $3, $4, $5)"
+		_, err := bc.db.Exec(query, tnx.ID, i, input.Txid, input.Vout, input.ScriptSig)
+		check(err)
+	}
+	for i, output := range tnx.Vout {
+		query = "INSERT INTO outputs VALUES($1, $2, $3, $4)"
+		_, err := bc.db.Exec(query, tnx.ID, i, output.ScriptPubKey, output.Value)
+		check(err)
+	}
+	fmt.Println("Транзакция создана")
 }
